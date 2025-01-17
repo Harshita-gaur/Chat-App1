@@ -15,11 +15,6 @@ def logout_view(request):
     logout(request)
     return redirect('home')  
 
-# views.py
-from django.shortcuts import render, redirect
-from .models import ChatMessage
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
 
 @login_required
 def send_message(request):
@@ -38,6 +33,24 @@ def send_message(request):
 
     return redirect('chat')  
 
+@login_required
+def send_group_message(request,sender_id):
+    if request.method == 'POST':
+        content = request.POST.get('content')
+
+        try:
+            if sender_id != request.user.username:
+                return JsonResponse({'error': 'Unauthorized sender'}, status=403)
+            
+            message = ChatMessage.objects.create(sender=request.user, receiver=None, content=content)
+            message.save()
+            return JsonResponse({'message': message.content, 'sender_id': message.sender.username, 'timestamp': message.timestamp})
+
+        except Exception as e:
+            return JsonResponse({'error': 'str(e)'}, status=500)
+
+    return redirect('chat')  
+
 
 
 
@@ -45,10 +58,23 @@ def send_message(request):
 def chat(request):
     users = User.objects.exclude(id=request.user.id)
     return render(request, 'chat.html', {
+        'sender':request.user,
         'users': users,
         'receiver': None,  
     })
 
+@login_required
+def chat_with_group(request, sender_id):
+    sender = request.user  # Get the logged-in user (sender)
+    messages = ChatMessage.objects.filter(
+        Q(sender_id=sender)  # Filter messages where the sender is the logged-in user
+    ).order_by('timestamp')
+
+    return render(request, 'chat.html', {
+        'sender': sender,  
+        'messages': messages,
+        'receiver': None,  # Explicitly set receiver as None for group chat
+    })
 
 @login_required
 def chat_with_user(request, receiver_id):

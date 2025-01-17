@@ -17,16 +17,27 @@
     <div class="container">
         <div class="left-menu">
             <h3>Users</h3>
-            <ul>
-                {% for user in users %}
-                    <li><a href="{% url 'chat_with_user' receiver_id=user.username %}">{{ user.username }}</a></li>
-                {% empty %}
-                    <li><div class="change-button"><a href="{% url 'chat' %}">Change receiver</a></div></li>
-               
-                <li> <div class="change-button"><a href="{% url 'logout' %}">Logout</a></div></li>
-
-                {% endfor %}
-            </ul>
+            {% if receiver %}
+                <li>
+                    <div class="change-button">
+                        <a href="{% url 'chat' %}">Change receiver</a>
+                    </div>
+                </li>
+            {% else %}
+                <ul>
+                    {% for user in users %}
+                        <li><a href="{% url 'chat_with_user' receiver_id=user.username %}">{{ user.username }}</a></li>
+                    {% empty %}
+                        <li>No users found</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            <li><div class="change-button"><a href="{% url 'logout' %}">Logout</a></div></li>
+            <li>
+                <div class="change-button">
+                    <a href="{% url 'chat_with_group' sender_id=user.username %}">Group Chat</a>
+                </div>
+            </li>
         </div>
 
         <div class="main-content">
@@ -35,36 +46,27 @@
                 <div class="collapsible" onclick="toggleRightMenu()">Toggle Right Panel</div>
             </div>
             <div class="content-box">
-                {% if receiver %}
-                    <h1>Messages with {{ receiver.username }}</h1>
-                    <ul id="messages">
-                        {% for message in messages %}
-                            <li>
-                                <b>{{ message.sender.username }}</b>: {{ message.content }} 
-                                <small>{{ message.timestamp }}</small>
-                            </li>
-                        {% empty %}
-                            <li>No messages yet</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                    <form method="POST" action="{% url 'send_message' receiver_id=receiver.username %}">
-                        {% csrf_token %}
-                        <textarea name="content" placeholder="Type your message" required></textarea>
-                        <button type="submit">Send</button>
-                    </form>
-                    
-                    
-                {% else %}
-                    <h1>Select a user to start chatting</h1>
-                {% endif %}
+                <h1>Messages with {% if receiver %}{{ receiver.username }}{% else %}everyone{% endif %}</h1>
+                <ul id="messages">
+                    {% for message in messages %}
+                        <li>
+                            <b>{{ message.sender.username }}</b>: {{ message.content }} 
+                            <small>{{ message.timestamp }}</small>
+                        </li>
+                    {% empty %}
+                        <li>No messages yet</li>
+                    {% endfor %}
+                </ul>
+                <form method="POST" action="{% if receiver %}{% url 'send_message' receiver_id=receiver.username %}{% else %}{% url 'send_group_message' sender_id=sender.username %}{% endif %}">
+                    {% csrf_token %}
+                    <textarea name="content" placeholder="Type your message" required></textarea>
+                    <button type="submit">Send</button>
+                </form>
             </div>
         </div>
+        
         <div class="right-panel">
-            <div class="logout-section">
-
-                
-            </div>
+            <div class="logout-section"></div>
         </div>
     </div>
 
@@ -87,52 +89,36 @@
             mainContent.style.marginRight = rightPanel.classList.contains('collapsed') ? '0' : '200px';
         }
 
-            // Ensure that the room ID is passed correctly from the template
-            const roomId = "{{ receiver.username }}";  // Use receiver.id instead of username
-            const chatSocket = new WebSocket(
-                'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
-            );
-        
-            // Handle incoming messages from the WebSocket
-            chatSocket.onmessage = function(e) {
-                const data = JSON.parse(e.data);
-        
-                // Dynamically add the received message to the messages list
-                const messageList = document.querySelector('#messages');
-                const messageItem = document.createElement('li');
-                messageItem.innerHTML = `<b>${data.sender}</b>: ${data.message} <small>${data.timestamp}</small>`;
-                messageList.appendChild(messageItem);
-            };
-        
-            // Handle WebSocket closure
-            chatSocket.onclose = function(e) {
-                console.error('Chat socket closed unexpectedly');
-            };
-        
-            // Submit form data using WebSocket
-            document.querySelector('form').onsubmit = function(e) {
-                e.preventDefault();  // Prevent the default form submission
-        
-                const messageInput = document.querySelector('textarea[name="content"]');
-                const messageContent = messageInput.value;
-        
-                // Send the message via WebSocket
-                chatSocket.send(JSON.stringify({
-                    'message': messageContent
-                }));
-        
-                // Dynamically add the sent message to the messages list
-                const messageList = document.querySelector('#messages');
-                const messageItem = document.createElement('li');
-                messageItem.innerHTML = `<b>You</b>: ${messageContent} <small>Just now</small>`;
-                messageList.appendChild(messageItem);
-        
-                // Clear the input field after sending the message
-                messageInput.value = '';
-            };
-        
+        // Use 'group' if the receiver is None (group chat) otherwise use receiver.username for direct chat
+        const roomId = "{{ receiver.username|default:'group' }}";
+
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/chat/' + roomId + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const messageList = document.querySelector('#messages');
+            const messageItem = document.createElement('li');
+            messageItem.innerHTML = `<b>${data.sender}</b>: ${data.message} <small>${data.timestamp}</small>`;
+            messageList.appendChild(messageItem);
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('form').onsubmit = function(e) {
+            e.preventDefault();
+            const messageInput = document.querySelector('textarea[name="content"]');
+            const messageContent = messageInput.value;
+            chatSocket.send(JSON.stringify({ 'message': messageContent }));
+            const messageList = document.querySelector('#messages');
+            const messageItem = document.createElement('li');
+            messageItem.innerHTML = `<b>You</b>: ${messageContent} <small>Just now</small>`;
+            messageList.appendChild(messageItem);
+            messageInput.value = '';
+        };
     </script>
 </body>
 </html>
-
-

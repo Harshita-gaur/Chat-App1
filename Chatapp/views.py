@@ -65,15 +65,15 @@ def chat(request):
 
 @login_required
 def chat_with_group(request, sender_id):
-    sender = request.user  # Get the logged-in user (sender)
+    sender = request.user 
     messages = ChatMessage.objects.filter(
-        Q(sender_id=sender)  # Filter messages where the sender is the logged-in user
+        Q(sender_id=sender)  
     ).order_by('timestamp')
 
     return render(request, 'chat.html', {
         'sender': sender,  
         'messages': messages,
-        'receiver': None,  # Explicitly set receiver as None for group chat
+        'receiver': None,  
     })
 
 @login_required

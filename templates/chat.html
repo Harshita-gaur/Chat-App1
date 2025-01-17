@@ -89,7 +89,6 @@
             mainContent.style.marginRight = rightPanel.classList.contains('collapsed') ? '0' : '200px';
         }
 
-        // Use 'group' if the receiver is None (group chat) otherwise use receiver.username for direct chat
         const roomId = "{{ receiver.username|default:'group' }}";
 
         const chatSocket = new WebSocket(
